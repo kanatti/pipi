@@ -8,23 +8,23 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 export default function (pi: ExtensionAPI) {
-	const allowed = new Set(["read"]);
+    const allowed = new Set(["read"]);
 
-	pi.on("tool_call", async (event, ctx) => {
-		if (allowed.has(event.toolName)) return undefined;
+    pi.on("tool_call", async (event, ctx) => {
+        if (allowed.has(event.toolName)) return undefined;
 
-		if (!ctx.hasUI) {
-			return { block: true, reason: `${event.toolName} blocked (no UI for confirmation)` };
-		}
+        if (!ctx.hasUI) {
+            return { block: true, reason: `${event.toolName} blocked (no UI for confirmation)` };
+        }
 
-		const input = JSON.stringify(event.input, null, 2);
-		const ok = await ctx.ui.confirm(event.toolName, `Allow ${event.toolName}?\n\n${input}`);
+        const input = JSON.stringify(event.input, null, 2);
+        const ok = await ctx.ui.confirm(event.toolName, `Allow ${event.toolName}?\n\n${input}`);
 
-		if (!ok) {
-			ctx.abort();
-			return { block: true, reason: `${event.toolName} blocked by user` };
-		}
+        if (!ok) {
+            ctx.abort();
+            return { block: true, reason: `${event.toolName} blocked by user` };
+        }
 
-		return undefined;
-	});
+        return undefined;
+    });
 }
