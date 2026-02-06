@@ -140,16 +140,21 @@ function isCommandSafe(commandPart: string): boolean {
 /**
  * Check if a bash command is safe to run without confirmation.
  * A command is safe if all individual commands in the chain are whitelisted.
+ * Exported for testing.
  */
-function isSafeBashCommand(command: string): boolean {
-    // Remove safe redirects to /dev/null before checking
-    let cleanCommand = command.replace(/\s*2>\s*\/dev\/null/g, "");
-    cleanCommand = cleanCommand.replace(/\s*1>\s*\/dev\/null/g, "");
-    cleanCommand = cleanCommand.replace(/\s*&>\s*\/dev\/null/g, "");
-    cleanCommand = cleanCommand.replace(/\s*>\s*\/dev\/null/g, "");
+export function isSafeBashCommand(command: string): boolean {
+    // Strip harmless redirects before checking for dangerous patterns.
+    // These redirects don't write to files or execute code - they just discard output.
+    const cleanCommand = command
+        .replace(/\s*2>\s*\/dev\/null/g, "")    // Example: "cat file.txt 2>/dev/null" → "cat file.txt" (discard stderr)
+        .replace(/\s*1>\s*\/dev\/null/g, "")    // Example: "ls -la 1>/dev/null" → "ls -la" (discard stdout)
+        .replace(/\s*&>\s*\/dev\/null/g, "")    // Example: "find . -name test &>/dev/null" → "find . -name test" (discard both)
+        .replace(/\s*>\s*\/dev\/null/g, "")     // Example: "grep pattern file >/dev/null" → "grep pattern file" (shorthand for 1>)
+        .replace(/\s*2>&1/g, "")                // Example: "git status 2>&1" → "git status" (merge stderr to stdout)
+        .replace(/\s*2>>&1/g, "");              // Example: "ls 2>>&1" → "ls" (append stderr to stdout)
 
-    // Split by common shell operators: |, ||, &&, ;
-    // Also handle redirects >, >>, < but these make it unsafe
+    // Now check for dangerous shell features AFTER stripping safe redirects
+    // This prevents false positives from the ">" in "2>/dev/null"
     if (/[<>`$(){}]/.test(cleanCommand)) {
         return false; // Redirects, subshells, and command substitution are unsafe
     }

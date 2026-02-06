@@ -9,11 +9,16 @@
             "./extensions"
         ]
     },
+    "scripts": {
+        "test": "tsx --test test/**/*.test.ts",
+        "test:watch": "tsx --test --watch test/**/*.test.ts"
+    },
     "peerDependencies": {
         "@mariozechner/pi-coding-agent": "*"
     },
     "devDependencies": {
         "@mariozechner/pi-coding-agent": "*",
-        "@types/node": "*"
+        "@types/node": "*",
+        "tsx": "^4.19.2"
     }
 }
