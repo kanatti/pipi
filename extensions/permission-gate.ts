@@ -41,6 +41,20 @@ export default function (pi: ExtensionAPI) {
         return true;
     }
 
+    /**
+     * Handle user's choice for a tool call.
+     */
+    function handleChoice(choice: string | undefined, toolName: string, ctx: any) {
+        if (choice === "Allow") {
+            return undefined;
+        } else if (choice === "Skip") {
+            return { block: true, reason: `${toolName} skipped by user` };
+        } else {
+            ctx.abort();
+            return { block: true, reason: `${toolName} aborted by user` };
+        }
+    }
+
     pi.on("tool_call", async (event, ctx) => {
         if (allowed.has(event.toolName)) return undefined;
 
@@ -66,42 +80,18 @@ export default function (pi: ExtensionAPI) {
                 : `bash\n\n${JSON.stringify(input, null, 2)}`;
             
             const choice = await ctx.ui.select(displayMessage, ["Allow", "Skip", "Abort"]);
-            
-            if (choice === "Allow") {
-                return undefined;
-            } else if (choice === "Skip") {
-                return { block: true, reason: `${event.toolName} skipped by user` };
-            } else {
-                ctx.abort();
-                return { block: true, reason: `${event.toolName} aborted by user` };
-            }
+            return handleChoice(choice, event.toolName, ctx);
         }
 
         // Special formatting for edit tool - simple confirmation (preview shows everything)
         if (event.toolName === "edit") {
             const choice = await ctx.ui.select("Apply this edit?", ["Allow", "Skip", "Abort"]);
-            
-            if (choice === "Allow") {
-                return undefined;
-            } else if (choice === "Skip") {
-                return { block: true, reason: `${event.toolName} skipped by user` };
-            } else {
-                ctx.abort();
-                return { block: true, reason: `${event.toolName} aborted by user` };
-            }
+            return handleChoice(choice, event.toolName, ctx);
         }
 
         // Default: show full JSON for all other tools
         const inputDisplay = `${event.toolName}\n\n${JSON.stringify(input, null, 2)}`;
         const choice = await ctx.ui.select(inputDisplay, ["Allow", "Skip", "Abort"]);
-
-        if (choice === "Allow") {
-            return undefined;
-        } else if (choice === "Skip") {
-            return { block: true, reason: `${event.toolName} skipped by user` };
-        } else {
-            ctx.abort();
-            return { block: true, reason: `${event.toolName} aborted by user` };
-        }
+        return handleChoice(choice, event.toolName, ctx);
     });
 }
