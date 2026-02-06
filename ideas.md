@@ -315,3 +315,152 @@ Need to document per repo:
 - Deployment workflows
 
 **Action:** Come back to this while working, document actual repos and workflows
+
+## Sandboxing & Isolation Tools to Explore
+
+### Gondolin - Local Linux Micro-VMs
+
+**Repo:** https://github.com/earendil-works/gondolin
+
+**What it is:**
+- Local Linux micro-VMs (QEMU) with fully programmable network stack and filesystem
+- Designed for sandboxing AI agent-generated code
+- Boot times in seconds
+- TypeScript control plane
+
+**Key Features:**
+- **Network control:** Allowlist hosts, inject secrets at network layer (guest never sees real API keys)
+- **Programmable filesystem:** In-memory, read-only, or custom providers (can proxy to remote storage)
+- **Secrets protection:** Credentials injected by host only for approved hosts, prevents exfiltration
+- **Cross-platform:** macOS (Apple Silicon) and Linux (aarch64)
+
+**Example:**
+```ts
+const { httpHooks, env } = createHttpHooks({
+  allowedHosts: ["api.openai.com"],
+  secrets: { OPENAI_API_KEY: { hosts: ["api.openai.com"], value: key } },
+});
+const vm = await VM.create({ httpHooks, env });
+await vm.exec("curl -H \"Authorization: Bearer $OPENAI_API_KEY\" https://...");
+```
+
+**Use Cases for Me:**
+- Run untrusted code from agents safely
+- Test OpenSearch/Spark code in isolated environments
+- Experiment with network restrictions (block internal IPs, allowlist specific hosts)
+- Protect AWS credentials when agents run cloud CLI commands
+- Quick spin-up/tear-down for experiments (better than Docker for agent workflows?)
+
+**Integration with Pi:**
+- Extension to spin up Gondolin VM for risky operations
+- Skill documenting when to use sandboxing
+- Prompt template: `/sandbox "run this code"` - executes in Gondolin VM
+- Could replace direct bash execution for untrusted code
+
+**Questions to explore:**
+- Performance vs Docker for quick experiments?
+- How to handle K8s interactions from sandbox?
+- Integration with qmd (mount notes read-only in VM)?
+- Custom images with OpenSearch/Spark pre-installed?
+
+---
+
+### AgentFS - Filesystem for Agents
+
+**Repo:** https://github.com/tursodatabase/agentfs
+
+**What it is:**
+- SQLite-based filesystem designed for AI agents
+- All operations recorded in single DB file
+- CLI + SDKs (TypeScript, Python, Rust)
+- FUSE (Linux) / NFS (macOS) mounting
+
+**Key Features:**
+- **Auditability:** Every file operation, tool call, state change recorded
+- **Reproducibility:** Snapshot/restore agent state with `cp agent.db snapshot.db`
+- **Portability:** Single SQLite file, version-controllable
+- **Tool tracking:** Records tool calls with status, duration, timestamps
+- **Timeline queries:** SQL queries for agent history/behavior
+
+**Example:**
+```bash
+agentfs init my-agent
+agentfs fs write my-agent /output/report.txt "content"
+agentfs timeline my-agent  # View action history
+agentfs mount my-agent ./mnt  # Mount to host filesystem
+```
+
+**Use Cases for Me:**
+- **Experiment tracking:** Each experiment gets an AgentFS instance
+  - All file operations recorded
+  - Timeline of what agent did
+  - Snapshot before/after for comparison
+- **Debugging agent behavior:** Query SQLite to see exact sequence of operations
+- **Reproducible research:** Share entire experiment as single .db file
+- **Session continuation:** AgentFS snapshot = session state
+- **Audit trail:** What files did the agent read/write during research?
+
+**Integration with Pi:**
+- Extension wrapping AgentFS SDK
+  - `agent_fs_init` - Create new agent filesystem
+  - `agent_fs_snapshot` - Snapshot current state
+  - `agent_fs_timeline` - Query operation history
+- Skill teaching pi when to use AgentFS for experiments
+- Integration with sessions extension:
+  - Save session = snapshot AgentFS + continuation prompt
+  - Resume session = restore AgentFS snapshot + load context
+- Integration with experiment workflows:
+  - `/experiment "test Spark partitions"` → creates AgentFS, runs, saves snapshot
+
+**Potential Workflow:**
+```bash
+# Start experiment
+/experiment "test opensearch query performance"
+  → Creates AgentFS instance: experiments/opensearch-query-perf.db
+  → Mounts at /agent
+  → Agent writes test code, results, logs to /agent/
+  → Records all operations
+
+# Later: review what happened
+agentfs timeline experiments/opensearch-query-perf.db
+agentfs fs ls experiments/opensearch-query-perf.db
+
+# Compare two experiment runs
+cp experiments/opensearch-v1.db snapshot-v1.db
+cp experiments/opensearch-v2.db snapshot-v2.db
+# Query differences in SQL
+```
+
+**Questions to explore:**
+- Can AgentFS mount be nested in Gondolin VM?
+- Performance impact of FUSE/NFS vs direct filesystem?
+- How to integrate with qmd (index AgentFS contents)?
+- Tool call tracking schema - can we extend for custom metrics?
+
+---
+
+### Combined Workflow: Gondolin + AgentFS + QMD
+
+**Scenario:** Research OpenSearch optimization, test in sandbox, track everything
+
+1. **Context gathering:**
+   - QMD searches notes for past OpenSearch work
+   - Loads opensearch-repo skill for context
+
+2. **Sandboxed execution:**
+   - Gondolin VM spins up with OpenSearch pre-installed
+   - AgentFS mounted at `/agent` inside VM
+   - Network restricted to necessary hosts only
+   - AWS creds injected at network layer (never visible in VM)
+
+3. **Experiment tracking:**
+   - All operations recorded in AgentFS
+   - Test code, results, logs written to `/agent/`
+   - Timeline captures sequence of operations
+
+4. **Results:**
+   - AgentFS snapshot saved to `experiments/opensearch-optimization-2025-02-05.db`
+   - Summary written to `~/Documents/kanatti-notes/experiments/`
+   - QMD indexes the new note for future searches
+
+**Action:** Experiment with both tools, design integration points
