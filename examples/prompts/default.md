@@ -6,4 +6,4 @@ Based on this conversation, generate a continuation prompt that summarizes:
 - What's still pending
 - Next steps
 
-Keep it concise and structured so the next session can resume smoothly.
+Keep it concise and structured so we can resume smoothly from this checkpoint.

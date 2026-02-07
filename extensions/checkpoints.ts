@@ -1,14 +1,14 @@
 /**
- * Sessions
+ * Checkpoints
  *
- * Save and continue sessions with AI-generated continuation prompts.
+ * Save and continue checkpoints with AI-generated continuation prompts.
  *
  * Commands:
- *   /sessions save <name>       - Pick a prompt template, generate continuation
- *   /sessions continue [name]   - Load a saved session (shows picker if no name)
- *   /sessions list              - List all saved sessions
- *   /sessions delete <name>     - Delete a saved session
- *   /sessions help              - Show help (also shown when no args provided)
+ *   /checkpoints save <name>       - Pick a prompt template, generate continuation
+ *   /checkpoints continue [name]   - Load a saved checkpoint (shows picker if no name)
+ *   /checkpoints list              - List all saved checkpoints
+ *   /checkpoints delete <name>     - Delete a saved checkpoint
+ *   /checkpoints help              - Show help (also shown when no args provided)
  */
 
 import { complete } from "@mariozechner/pi-ai";
@@ -22,15 +22,15 @@ import { join } from "node:path";
 // Storage paths
 const PIPI_DIR = join(homedir(), ".pipi");
 
-// Sessions: AI-generated continuation prompts that can be loaded with /continue
-const SESSIONS_DIR = join(PIPI_DIR, "sessions");
+// Checkpoints: AI-generated continuation prompts that can be loaded with /checkpoints continue
+const CHECKPOINTS_DIR = join(PIPI_DIR, "checkpoints");
 
 // Prompts: User-defined templates for generating continuation prompts
-// Used by /save when no custom instructions are provided
+// Used by /checkpoints save when no custom instructions are provided
 const PROMPTS_DIR = join(PIPI_DIR, "prompts");
 
 // Ensure directories exist
-mkdirSync(SESSIONS_DIR, { recursive: true });
+mkdirSync(CHECKPOINTS_DIR, { recursive: true });
 mkdirSync(PROMPTS_DIR, { recursive: true });
 
 /**
@@ -89,15 +89,15 @@ function loadPrompt(name: string): string {
 }
 
 /**
- * Get list of saved session names from ~/.pipi/sessions/
+ * Get list of saved checkpoint names from ~/.pipi/checkpoints/
  * Scans for .md files and returns their names without extension.
- * Used by /continue to show picker when no name is provided.
+ * Used by /checkpoints continue to show picker when no name is provided.
  */
-function getSavedSessions(): string[] {
-    if (!existsSync(SESSIONS_DIR)) {
+function getSavedCheckpoints(): string[] {
+    if (!existsSync(CHECKPOINTS_DIR)) {
         return [];
     }
-    return readdirSync(SESSIONS_DIR)
+    return readdirSync(CHECKPOINTS_DIR)
         .filter((f) => f.endsWith(".md"))
         .map((f) => f.replace(/\.md$/, ""));
 }
@@ -134,8 +134,8 @@ async function saveHandler(args: string, ctx: ExtensionCommandContext, pi: Exten
         return;
     }
 
-    // Check if session file already exists, confirm overwrite
-    const promptPath = join(SESSIONS_DIR, `${name}.md`);
+    // Check if checkpoint file already exists, confirm overwrite
+    const promptPath = join(CHECKPOINTS_DIR, `${name}.md`);
     if (existsSync(promptPath)) {
         const ok = await ctx.ui.confirm("Overwrite?", `${name}.md already exists`);
         if (!ok) return;
@@ -184,21 +184,21 @@ async function saveHandler(args: string, ctx: ExtensionCommandContext, pi: Exten
 }
 
 async function showHelp(ctx: ExtensionCommandContext) {
-    const helpText = `# Sessions
+    const helpText = `# Checkpoints
 
-Manage session continuations with AI-generated prompts.
+Manage checkpoint continuations with AI-generated prompts.
 
 ## Commands
 
-- \`/sessions save <name>\` — Pick a prompt template, generate continuation from current session
-- \`/sessions continue [name]\` — Load a saved session (shows picker if no name)
-- \`/sessions list\` — List all saved sessions
-- \`/sessions delete <name>\` — Delete a saved session
-- \`/sessions help\` — Show this help
+- \`/checkpoints save <name>\` — Pick a prompt template, generate continuation from current session
+- \`/checkpoints continue [name]\` — Load a saved checkpoint (shows picker if no name)
+- \`/checkpoints list\` — List all saved checkpoints
+- \`/checkpoints delete <name>\` — Delete a saved checkpoint
+- \`/checkpoints help\` — Show this help
 
 ## Storage
 
-- Sessions: \`~/.pipi/sessions/\`
+- Checkpoints: \`~/.pipi/checkpoints/\`
 - Prompts: \`~/.pipi/prompts/\`
 
 ## Example Prompts
@@ -210,19 +210,19 @@ mkdir -p ~/.pipi/prompts
 cp examples/prompts/*.md ~/.pipi/prompts/
 \`\`\`
 `;
-    await showMarkdownDialog("Sessions Help", helpText, ctx);
+    await showMarkdownDialog("Checkpoints Help", helpText, ctx);
 }
 
 async function deleteHandler(args: string, ctx: ExtensionCommandContext) {
     const name = args.trim();
     if (!name) {
-        ctx.ui.notify("Usage: /sessions delete <name>", "error");
+        ctx.ui.notify("Usage: /checkpoints delete <name>", "error");
         return;
     }
 
-    const filePath = join(SESSIONS_DIR, `${name}.md`);
+    const filePath = join(CHECKPOINTS_DIR, `${name}.md`);
     if (!existsSync(filePath)) {
-        ctx.ui.notify(`Session not found: ${name}.md`, "error");
+        ctx.ui.notify(`Checkpoint not found: ${name}.md`, "error");
         return;
     }
 
@@ -238,19 +238,19 @@ async function continueHandler(args: string, ctx: ExtensionCommandContext) {
 
     // Show picker if no name
     if (!name) {
-        const sessions = getSavedSessions();
-        if (sessions.length === 0) {
-            ctx.ui.notify("No saved sessions found", "warning");
+        const checkpoints = getSavedCheckpoints();
+        if (checkpoints.length === 0) {
+            ctx.ui.notify("No saved checkpoints found", "warning");
             return;
         }
-        const selected = await ctx.ui.select("Choose session:", sessions);
+        const selected = await ctx.ui.select("Choose checkpoint:", checkpoints);
         if (!selected) return;
         name = selected;
     }
 
-    const filePath = join(SESSIONS_DIR, `${name}.md`);
+    const filePath = join(CHECKPOINTS_DIR, `${name}.md`);
     if (!existsSync(filePath)) {
-        ctx.ui.notify(`Session not found: ${name}.md`, "error");
+        ctx.ui.notify(`Checkpoint not found: ${name}.md`, "error");
         return;
     }
 
@@ -260,8 +260,8 @@ async function continueHandler(args: string, ctx: ExtensionCommandContext) {
 }
 
 export default function (pi: ExtensionAPI) {
-    pi.registerCommand("sessions", {
-        description: "Manage session continuations (save, continue, delete)",
+    pi.registerCommand("checkpoints", {
+        description: "Manage checkpoint continuations (save, continue, delete)",
         handler: async (args, ctx) => {
             const parts = args.trim().split(/\s+/);
             const action = parts[0];
@@ -272,15 +272,15 @@ export default function (pi: ExtensionAPI) {
             } else if (action === "continue") {
                 await continueHandler(rest, ctx);
             } else if (action === "list") {
-                const sessions = getSavedSessions();
-                if (sessions.length === 0) {
-                    ctx.ui.notify("No saved sessions found", "info");
+                const checkpoints = getSavedCheckpoints();
+                if (checkpoints.length === 0) {
+                    ctx.ui.notify("No saved checkpoints found", "info");
                 } else {
-                    const list = sessions.map((s) => `  • ${s}.md`).join("\n");
-                    const message = `Saved Sessions (${sessions.length})\n\n${list}`;
+                    const list = checkpoints.map((s) => `  • ${s}.md`).join("\n");
+                    const message = `Saved Checkpoints (${checkpoints.length})\n\n${list}`;
 
                     pi.sendMessage({
-                        customType: "sessions-list",
+                        customType: "checkpoints-list",
                         content: message,
                         display: true,
                     });
@@ -290,7 +290,7 @@ export default function (pi: ExtensionAPI) {
             } else if (action === "help" || !action) {
                 await showHelp(ctx);
             } else {
-                ctx.ui.notify(`Unknown action: ${action}. Use /sessions help for usage.`, "error");
+                ctx.ui.notify(`Unknown action: ${action}. Use /checkpoints help for usage.`, "error");
             }
         },
     });

@@ -7,4 +7,4 @@ We're doing a guided walkthrough of a codebase or technical topic. Based on this
 - Next steps
 - Methodology notes (e.g., Socratic approach, code-first vs concept-first)
 
-Keep the format tight and readable. This will be used to resume the session later, so include enough context for both the user and the assistant to pick up where we left off.
+Keep the format tight and readable. This checkpoint will be used to resume later, so include enough context for both the user and the assistant to pick up where we left off.

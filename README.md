@@ -5,11 +5,20 @@ A collection of pi extensions.
 ## Extensions
 
 - **permission-gate** — Allows `read` freely, confirms everything else (bash, write, edit, etc.)
-- **sessions** — Save and continue sessions with AI-generated continuation prompts
-    - `/sessions save <name>` — Pick a prompt template, generate continuation from current session
-    - `/sessions continue [name]` — Load a saved session (shows picker if no name)
-    - `/sessions list` — List all saved sessions
-    - `/sessions delete <name>` — Delete a saved session
+- **checkpoints** — Save and continue checkpoints with AI-generated continuation prompts
+    - `/checkpoints save <name>` — Pick a prompt template, generate continuation from current session
+    - `/checkpoints continue [name]` — Load a saved checkpoint (shows picker if no name)
+    - `/checkpoints list` — List all saved checkpoints
+    - `/checkpoints delete <name>` — Delete a saved checkpoint
+
+## Prompt Templates
+
+- **`/codebase-walkthrough`** — Guided Socratic exploration of codebase with Q&A verification
+- **`/explain-code`** — Explain code with analogies and simplified examples
+
+## Skills
+
+- **`/skill:yt-analyze`** — Analyze YouTube videos by fetching transcripts and providing summaries
 
 ## Prerequisites
 
@@ -61,7 +70,7 @@ Pinned packages are skipped by `pi update`.
 
 ## Customization
 
-### Session Continuation Prompts
+### Checkpoint Continuation Prompts
 
 Add your own prompts to `~/.pipi/prompts/`. Example prompts are in `examples/prompts/`:
 
@@ -75,4 +84,4 @@ mkdir -p ~/.pipi/prompts
 cp examples/prompts/*.md ~/.pipi/prompts/
 ```
 
-Saved sessions are stored in `~/.pipi/sessions/<name>.md`.
+Saved checkpoints are stored in `~/.pipi/checkpoints/<name>.md`.
