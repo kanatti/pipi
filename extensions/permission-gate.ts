@@ -4,7 +4,7 @@
  * Controls which tool calls require user confirmation before executing.
  *
  * - `read` - always allowed
- * - `bash` - allowed for safe read-only commands (ls, cat, find, git status, gh repo view, etc.)
+ * - `bash` - allowed for safe read-only commands (ls, cat, find, git status, gh repo view, ktools yt-transcript, etc.)
  * - `write`, `edit` - require confirmation
  * - Other tools - require confirmation
  *
@@ -62,6 +62,10 @@ const safeSubcommands: Record<string, Set<string>> = {
 const safeGhActions = new Set(["view", "list", "show", "search", "status", "diff", "checks", "watch"]);
 const safeGhResources = new Set(["repo", "pr", "issue", "release", "run", "workflow", "gist"]);
 
+// Safe ktools commands (format: ktools <tool> <action>)
+const safeKtoolsActions = new Set(["list", "get", "chapters"]);
+const safeKtoolsTools = new Set(["yt-transcript"]);
+
 // ============================================================================
 // Policy Checking
 // ============================================================================
@@ -113,11 +117,28 @@ const checkSafeGhCommand: PolicyChecker = (words) => {
     return !!secondWord && !!thirdWord && safeGhResources.has(secondWord) && safeGhActions.has(thirdWord);
 };
 
+/**
+ * Policy 4: Check if it's a safe ktools command.
+ * ktools commands have format: ktools <tool> <action> [args]
+ * Example: ktools yt-transcript list VIDEO_ID
+ */
+const checkSafeKtoolsCommand: PolicyChecker = (words) => {
+    if (words[0] !== "ktools") {
+        return false;
+    }
+
+    const tool = words[1];
+    const action = words[2];
+
+    return !!tool && !!action && safeKtoolsTools.has(tool) && safeKtoolsActions.has(action);
+};
+
 // Pipeline of policy checks - add more policies here as needed
 const policyChecks: PolicyChecker[] = [
     checkSimpleSafeCommand,
     checkSafeSubcommand,
     checkSafeGhCommand,
+    checkSafeKtoolsCommand,
     // Add more policies here, e.g.:
     // checkSafeFlagsOnly,
     // checkReadOnlyOperations,

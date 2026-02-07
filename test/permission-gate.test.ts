@@ -107,4 +107,27 @@ describe("Permission Gate - Bash Command Safety", () => {
             assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
         }
     });
+
+    it("allows ktools commands with safe tool and action", () => {
+        const safeKtoolsCommands = [
+            "ktools yt-transcript list dQw4w9WgXcQ",
+            "ktools yt-transcript chapters dQw4w9WgXcQ",
+            "ktools yt-transcript get dQw4w9WgXcQ --output /path/to/file.txt",
+        ];
+
+        for (const cmd of safeKtoolsCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+        }
+    });
+
+    it("blocks ktools commands with unsafe actions or tools", () => {
+        const unsafeKtoolsCommands = [
+            "ktools yt-transcript delete dQw4w9WgXcQ", // delete not in safeKtoolsActions
+            "ktools unknown-tool list dQw4w9WgXcQ", // unknown-tool not in safeKtoolsTools
+        ];
+
+        for (const cmd of unsafeKtoolsCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+        }
+    });
 });
