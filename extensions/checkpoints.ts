@@ -14,6 +14,7 @@
 import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext, SessionEntry } from "@mariozechner/pi-coding-agent";
 import { DynamicBorder, getMarkdownTheme } from "@mariozechner/pi-coding-agent";
+import type { AutocompleteItem } from "@mariozechner/pi-tui";
 import { Container, Markdown, matchesKey, Text } from "@mariozechner/pi-tui";
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -262,6 +263,36 @@ async function continueHandler(args: string, ctx: ExtensionCommandContext) {
 export default function (pi: ExtensionAPI) {
     pi.registerCommand("checkpoints", {
         description: "Manage checkpoint continuations (save, continue, delete)",
+        getArgumentCompletions: (prefix: string): AutocompleteItem[] | null => {
+            const parts = prefix.trim().split(/\s+/);
+            const subcommand = parts[0];
+            const rest = parts.slice(1).join(" ");
+
+            const subcommands = ["save", "continue", "list", "delete", "help"];
+
+            // If we're still typing the first word (subcommand), complete it
+            if (parts.length === 1 || (parts.length === 2 && !prefix.endsWith(" "))) {
+                // Don't show autocomplete if we've already typed a complete match
+                if (subcommands.includes(subcommand)) {
+                    return null;
+                }
+
+                const filtered = subcommands.filter((s) => s.startsWith(subcommand));
+                return filtered.length > 0 ? filtered.map((s) => ({ value: s, label: s })) : null;
+            }
+
+            // If we have a subcommand and are typing the next argument
+            if (parts.length >= 2) {
+                // For "continue" and "delete", complete with checkpoint names
+                if (subcommand === "continue" || subcommand === "delete") {
+                    const checkpoints = getSavedCheckpoints();
+                    const filtered = checkpoints.filter((c) => c.startsWith(rest));
+                    return filtered.length > 0 ? filtered.map((c) => ({ value: c, label: c })) : null;
+                }
+            }
+
+            return null;
+        },
         handler: async (args, ctx) => {
             const parts = args.trim().split(/\s+/);
             const action = parts[0];
