@@ -181,4 +181,83 @@ describe("Permission Gate - Bash Command Safety", () => {
             assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
         }
     });
+
+    it("allows xargs with safe commands", () => {
+        const safeXargsCommands = [
+            "xargs grep pattern",
+            "xargs ls -la",
+            "xargs cat",
+            "xargs -n 1 head",
+            "xargs -0 grep search", 
+            "xargs -p find . -name",
+            "xargs git status",
+        ];
+
+        for (const cmd of safeXargsCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+        }
+    });
+
+    it("blocks xargs with unsafe commands", () => {
+        const unsafeXargsCommands = [
+            "xargs rm", // rm is not safe
+            "xargs mv file1 file2", // mv is not safe
+            "xargs sh -c", // sh is not safe
+            "xargs git commit", // commit is not in safe git subcommands
+        ];
+
+        for (const cmd of unsafeXargsCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+        }
+    });
+
+    it("blocks xargs with malformed or missing commands", () => {
+        const malformedXargsCommands = [
+            "xargs", // No command
+            "xargs -I", // Missing replacement string  
+            "xargs -n", // Missing number argument
+            "xargs -I replacement-string", // No command after flags
+        ];
+
+        for (const cmd of malformedXargsCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe (malformed)`);
+        }
+    });
+
+    it("handles quoted strings containing shell operators correctly", () => {
+        const commandsWithQuotedOperators = [
+            'grep "pattern|with|pipes" file.txt',
+            'echo "command; another" | cat',
+            'find . -name "*.md" | xargs grep -l -i "bundle\\|shade\\|conflict"',
+            'xargs grep -i "search|term"',
+            'ls | grep "file;name"',
+            'cat file.txt | grep "text&more"',
+        ];
+
+        for (const cmd of commandsWithQuotedOperators) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (quoted operators)`);
+        }
+    });
+
+    it("correctly splits commands with quoted shell operators", () => {
+        const complexCommands = [
+            'echo "a|b" | grep test', // Should split into: echo "a|b", grep test
+            'find . | xargs grep "pattern;with;semicolons"', // Should split into: find ., xargs grep "pattern;with;semicolons"
+            'ls ; echo "done&finished"', // Should split into: ls, echo "done&finished"
+        ];
+
+        for (const cmd of complexCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (complex quoted)`);
+        }
+    });
+
+    it("handles the specific parquet-java command that was previously failing", () => {
+        // This was the exact command that prompted the quote-aware splitting fix
+        const parquetCommand = 'find . -name "*.md" | xargs grep -l -i "bundle\\|shade\\|conflict"';
+        assert.strictEqual(
+            isSafeBashCommand(parquetCommand), 
+            true, 
+            "The parquet-java command should be allowed (regression test)"
+        );
+    });
 });

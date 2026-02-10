@@ -37,6 +37,9 @@ const safeBashCommands = new Set([
     "stat",
     "printenv",
     "jq",
+    "cut",
+    "sort",
+    "uniq",
 ]);
 
 // Commands that need subcommand checking (first word -> allowed second words)
@@ -54,6 +57,11 @@ const safeSubcommands: Record<string, Set<string>> = {
         "blame",
         "describe",
         "tag",
+    ]),
+    jar: new Set([
+        "-tf",    // list contents of file
+        "-t",     // list contents  
+        "--list", // list contents (long form)
     ]),
     // Add more here as needed, e.g.:
     // "docker": new Set(["ps", "images", "inspect", "logs"]),
@@ -134,12 +142,48 @@ const checkSafeKtoolsCommand: PolicyChecker = (words) => {
     return !!tool && !!action && safeKtoolsTools.has(tool) && safeKtoolsActions.has(action);
 };
 
+/**
+ * Policy 5: Check if it's a safe xargs command.
+ * xargs commands have format: xargs [flags] command [command-args]
+ * The safety depends on the command that xargs will execute.
+ * Example: xargs grep pattern (safe), xargs rm (unsafe)
+ */
+const checkSafeXargsCommand: PolicyChecker = (words) => {
+    if (words[0] !== "xargs") {
+        return false;
+    }
+
+    let i = 1;
+    while (i < words.length && words[i].startsWith('-')) {
+        const flag = words[i];
+        i++;
+        
+        // Flags that take an argument
+        if (['-I', '-i', '-n', '-s', '-P', '-L', '-l'].includes(flag)) {
+            if (i >= words.length) {
+                return false; // Malformed: flag missing its argument, ask for permission
+            }
+            i++; // Skip the flag's argument
+        }
+        // Other flags like -p, -0, -r, -t don't take arguments
+    }
+    
+    if (i >= words.length) {
+        return false; // No command found after xargs flags, ask for permission
+    }
+    
+    // Now we have the actual command, check if it's safe
+    const actualCommand = words.slice(i);
+    return isCommandSafe(actualCommand.join(' '));
+};
+
 // Pipeline of policy checks - add more policies here as needed
 const policyChecks: PolicyChecker[] = [
     checkSimpleSafeCommand,
     checkSafeSubcommand,
     checkSafeGhCommand,
     checkSafeKtoolsCommand,
+    checkSafeXargsCommand,
     // Add more policies here, e.g.:
     // checkSafeFlagsOnly,
     // checkReadOnlyOperations,
@@ -217,16 +261,16 @@ function advanceParser(char: string, state: ParseState): boolean {
 }
 
 /**
- * Check if a command contains dangerous shell characters outside of quotes.
+ * Check if a command contains shell metacharacters outside of quotes.
  * Parses the command character-by-character to handle quotes and escapes properly.
  * 
  * Examples:
- *   isDangerousCommand('grep "pattern {"')  → false (quoted)
- *   isDangerousCommand('echo {a,b,c}')      → true  (unquoted brace expansion)
- *   isDangerousCommand('cat file > out')    → true  (unquoted redirect)
- *   isDangerousCommand('echo \\{')           → false (escaped)
+ *   hasShellMetaChars('grep "pattern {"')  → false (quoted)
+ *   hasShellMetaChars('echo {a,b,c}')      → true  (unquoted brace expansion)
+ *   hasShellMetaChars('cat file > out')    → true  (unquoted redirect)
+ *   hasShellMetaChars('echo \\{')           → false (escaped)
  */
-function isDangerousCommand(command: string): boolean {
+function hasShellMetaChars(command: string): boolean {
     const state: ParseState = {
         inSingleQuote: false,
         inDoubleQuote: false,
@@ -247,6 +291,54 @@ function isDangerousCommand(command: string): boolean {
 }
 
 /**
+ * Split a command by shell operators (|, ;, &) while respecting quotes.
+ * This ensures quoted strings containing these characters are not split.
+ * 
+ * Examples:
+ *   splitShellCommand('ls | grep test')                    → ['ls', 'grep test']
+ *   splitShellCommand('grep "pattern|with|pipes" | wc')   → ['grep "pattern|with|pipes"', 'wc']
+ *   splitShellCommand('echo "a;b" ; ls')                  → ['echo "a;b"', 'ls']
+ */
+function splitShellCommand(command: string): string[] {
+    const parts: string[] = [];
+    let currentPart = '';
+    
+    const state: ParseState = {
+        inSingleQuote: false,
+        inDoubleQuote: false,
+        escaped: false,
+    };
+
+    for (let i = 0; i < command.length; i++) {
+        const char = command[i];
+        const isActive = advanceParser(char, state);
+        
+        // Check if this is a shell operator when active (not quoted)
+        if (isActive && /[|;&]/.test(char)) {
+            // Found an unquoted shell operator, split here
+            if (currentPart.trim()) {
+                parts.push(currentPart.trim());
+            }
+            currentPart = '';
+            
+            // Skip consecutive operators
+            while (i + 1 < command.length && /[|;&]/.test(command[i + 1])) {
+                i++;
+            }
+        } else {
+            currentPart += char;
+        }
+    }
+    
+    // Add the final part if not empty
+    if (currentPart.trim()) {
+        parts.push(currentPart.trim());
+    }
+    
+    return parts;
+}
+
+/**
  * Check if a bash command is safe to run without confirmation.
  * A command is safe if all individual commands in the chain are whitelisted.
  * Exported for testing.
@@ -263,12 +355,12 @@ export function isSafeBashCommand(command: string): boolean {
         .replace(/\s*2>>&1/g, ""); // Example: "ls 2>>&1" → "ls" (append stderr to stdout)
 
     // Check for dangerous shell features with quote-aware parsing
-    if (isDangerousCommand(cleanCommand)) {
+    if (hasShellMetaChars(cleanCommand)) {
         return false;
     }
 
-    // Split by pipes and logical operators
-    const parts = cleanCommand.split(/[|;&]+/).map((s) => s.trim());
+    // Split by pipes and logical operators using quote-aware splitting
+    const parts = splitShellCommand(cleanCommand);
 
     // Check each part through the policy pipeline
     for (const part of parts) {
