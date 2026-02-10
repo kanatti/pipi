@@ -22,6 +22,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 const safeBashCommands = new Set([
     "ls",
     "cat",
+    "cd",
     "grep",
     "find",
     "pwd",
@@ -158,6 +159,93 @@ function isCommandSafe(commandPart: string): boolean {
     return policyChecks.some((policy) => policy(words));
 }
 
+// ============================================================================
+// Shell Command Safety Checking
+// ============================================================================
+
+/**
+ * Check if a character is a dangerous shell metacharacter.
+ */
+function isDangerousChar(char: string): boolean {
+    // Dangerous shell metacharacters:
+    // < > : redirects
+    // ` : command substitution
+    // $ : variable expansion / command substitution
+    // ( ) : subshells
+    // { } : brace expansion
+    return /[<>`$(){}]/.test(char);
+}
+
+/**
+ * State for tracking position in a shell command during parsing.
+ */
+interface ParseState {
+    inSingleQuote: boolean;
+    inDoubleQuote: boolean;
+    escaped: boolean;
+}
+
+/**
+ * Advance the parser by one character, updating state.
+ * Returns true if the character is "active" (not quoted/escaped), false otherwise.
+ */
+function advanceParser(char: string, state: ParseState): boolean {
+    // Handle escape sequences
+    if (state.escaped) {
+        state.escaped = false;
+        return false; // Escaped chars are not active
+    }
+
+    if (char === '\\') {
+        state.escaped = true;
+        return false;
+    }
+
+    // Track quote state
+    if (char === "'" && !state.inDoubleQuote) {
+        state.inSingleQuote = !state.inSingleQuote;
+        return false; // Quote itself is not active
+    }
+
+    if (char === '"' && !state.inSingleQuote) {
+        state.inDoubleQuote = !state.inDoubleQuote;
+        return false; // Quote itself is not active
+    }
+
+    // Character is active if not inside any quotes
+    return !state.inSingleQuote && !state.inDoubleQuote;
+}
+
+/**
+ * Check if a command contains dangerous shell characters outside of quotes.
+ * Parses the command character-by-character to handle quotes and escapes properly.
+ * 
+ * Examples:
+ *   isDangerousCommand('grep "pattern {"')  → false (quoted)
+ *   isDangerousCommand('echo {a,b,c}')      → true  (unquoted brace expansion)
+ *   isDangerousCommand('cat file > out')    → true  (unquoted redirect)
+ *   isDangerousCommand('echo \\{')           → false (escaped)
+ */
+function isDangerousCommand(command: string): boolean {
+    const state: ParseState = {
+        inSingleQuote: false,
+        inDoubleQuote: false,
+        escaped: false,
+    };
+
+    for (let i = 0; i < command.length; i++) {
+        const char = command[i];
+        const isActive = advanceParser(char, state);
+
+        // Check for dangerous chars only when active (not quoted/escaped)
+        if (isActive && isDangerousChar(char)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /**
  * Check if a bash command is safe to run without confirmation.
  * A command is safe if all individual commands in the chain are whitelisted.
@@ -174,10 +262,9 @@ export function isSafeBashCommand(command: string): boolean {
         .replace(/\s*2>&1/g, "") // Example: "git status 2>&1" → "git status" (merge stderr to stdout)
         .replace(/\s*2>>&1/g, ""); // Example: "ls 2>>&1" → "ls" (append stderr to stdout)
 
-    // Now check for dangerous shell features AFTER stripping safe redirects
-    // This prevents false positives from the ">" in "2>/dev/null"
-    if (/[<>`$(){}]/.test(cleanCommand)) {
-        return false; // Redirects, subshells, and command substitution are unsafe
+    // Check for dangerous shell features with quote-aware parsing
+    if (isDangerousCommand(cleanCommand)) {
+        return false;
     }
 
     // Split by pipes and logical operators

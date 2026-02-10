@@ -12,6 +12,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         const safeCommands = [
             "ls -la",
             "cat file.txt",
+            "cd /some/directory",
             "grep pattern file.txt",
             "find . -name '*.ts'",
             "git status",
@@ -52,6 +53,18 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safePipes) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+        }
+    });
+
+    it("allows safe compound commands with logical operators", () => {
+        const safeCompoundCommands = [
+            "cd /tmp && ls",
+            "cd /Users/balu/Code && git log",
+            "pwd && echo hello",
+        ];
+
+        for (const cmd of safeCompoundCommands) {
             assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
         }
     });
@@ -105,6 +118,44 @@ describe("Permission Gate - Bash Command Safety", () => {
 
         for (const cmd of dangerousCommands) {
             assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+        }
+    });
+
+    it("allows dangerous characters when properly quoted", () => {
+        const safeQuotedCommands = [
+            'grep "OpenAICompletionsCompat {" file.ts', // Quoted brace
+            "grep 'pattern {' file.txt", // Single-quoted brace
+            'echo "redirect > file"', // Quoted redirect
+            'cat "file$name.txt"', // Quoted variable expansion
+            "echo 'subshell (test)'", // Quoted parenthesis
+            'grep "backtick `test`"', // Quoted backtick
+        ];
+
+        for (const cmd of safeQuotedCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (quoted)`);
+        }
+    });
+
+    it("handles escaped characters correctly", () => {
+        const escapedCommands = [
+            "echo \\{", // Escaped brace
+            "echo \\$HOME", // Escaped variable
+            "grep \\> file.txt", // Escaped redirect
+        ];
+
+        for (const cmd of escapedCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (escaped)`);
+        }
+    });
+
+    it("handles mixed quotes correctly", () => {
+        const mixedQuoteCommands = [
+            'grep "pattern \'nested\'" file.txt', // Double quotes with single inside
+            "grep 'pattern \"nested\"' file.txt", // Single quotes with double inside
+        ];
+
+        for (const cmd of mixedQuoteCommands) {
+            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (mixed quotes)`);
         }
     });
 
