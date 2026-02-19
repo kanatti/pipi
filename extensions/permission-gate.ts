@@ -40,6 +40,7 @@ const safeBashCommands = new Set([
     "cut",
     "sort",
     "uniq",
+    "tree",
 ]);
 
 // Commands that need subcommand checking (first word -> allowed second words)
