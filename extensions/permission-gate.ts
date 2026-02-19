@@ -64,6 +64,14 @@ const safeSubcommands: Record<string, Set<string>> = {
         "-t",     // list contents  
         "--list", // list contents (long form)
     ]),
+    kb: new Set([
+        "config",
+        "vaults",
+        "domains",
+        "notes",
+        "read",
+        "tags",
+    ]),
     // Add more here as needed, e.g.:
     // "docker": new Set(["ps", "images", "inspect", "logs"]),
 };
