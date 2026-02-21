@@ -41,6 +41,7 @@ const safeBashCommands = new Set([
     "sort",
     "uniq",
     "tree",
+    "rg",
 ]);
 
 // Commands that need subcommand checking (first word -> allowed second words)
@@ -71,6 +72,19 @@ const safeSubcommands: Record<string, Set<string>> = {
         "notes",
         "read",
         "tags",
+    ]),
+    cargo: new Set([
+        "--version",      // show version
+        "-V",             // show version (short)
+        "search",         // search crates.io
+        "metadata",       // output package metadata (JSON)
+        "tree",           // display dependency tree
+        "verify-project", // check if current dir is valid cargo project
+        "locate-project", // print path to Cargo.toml
+        "read-manifest",  // print JSON representation of manifest
+        "pkgid",          // print package ID
+        "help",           // show help
+        "test",           // run tests (NOTE: not read-only, executes code - allowed for dev convenience)
     ]),
     // Add more here as needed, e.g.:
     // "docker": new Set(["ps", "images", "inspect", "logs"]),
