@@ -65,7 +65,7 @@ const safeSubcommands: Record<string, Set<string>> = {
         "-t",     // list contents  
         "--list", // list contents (long form)
     ]),
-    kb: new Set([
+    kbase: new Set([
         "config",
         "vaults",
         "domains",
