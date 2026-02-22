@@ -17,6 +17,7 @@ kbase notes --files                       # List paths only
 kbase tags [--sort name|count]            # List tags (requires kbase index)
 kbase read <path>                         # Read note content
 kbase read <path> --outline               # Read headings only
+kbase read <path> -n                      # Read with line numbers (cat -n style)
 ```
 
 ## Vault Selection
@@ -35,5 +36,6 @@ kbase read <path> --outline               # Read headings only
 
 - Tag commands require index: if error, suggest running `kbase index` or use domain filters
 - Note paths are vault-relative: `domain/note.md` or `note.md`
-- Use `--files` for paths only, `--outline` for structure
+- Use `--files` for paths only, `--outline` for structure, `-n` for line numbers
+- Combine `--outline -n` to see heading positions (useful for locating sections)
 - Default to lists first, then read based on user interest
