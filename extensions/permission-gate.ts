@@ -84,6 +84,7 @@ const safeSubcommands: Record<string, Set<string>> = {
         "read-manifest",  // print JSON representation of manifest
         "pkgid",          // print package ID
         "help",           // show help
+        "check",          // check compilation without building
         "test",           // run tests (NOTE: not read-only, executes code - allowed for dev convenience)
     ]),
     // Add more here as needed, e.g.:
