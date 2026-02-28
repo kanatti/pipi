@@ -5,7 +5,7 @@
  *
  * - `read` - always allowed
  * - `bash` - allowed for safe read-only commands (ls, cat, find, git status, gh repo view, kbase repo list, ktools yt-transcript, etc.)
- * - `write`, `edit` - require confirmation
+ * - `write`, `edit` - allowed within current working directory (nested down), require confirmation for parent directories or absolute paths
  * - Other tools - require confirmation
  *
  * Uses a policy pipeline to check bash commands for safety. Easy to extend with more
@@ -13,6 +13,21 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { resolve, relative } from "node:path";
+
+// ============================================================================
+// Path Safety Helpers
+// ============================================================================
+
+/**
+ * Check if a file path is within the current working directory (nested down).
+ * Returns false for parent directories (..) or absolute paths outside CWD.
+ */
+function isPathWithinCwd(path: string, cwd: string): boolean {
+    const absolutePath = resolve(cwd, path);
+    const relativeToCwd = relative(cwd, absolutePath);
+    return !relativeToCwd.startsWith('..');
+}
 
 // ============================================================================
 // Configuration
@@ -468,13 +483,25 @@ export default function (pi: ExtensionAPI) {
             return handleChoice(choice, event.toolName, ctx);
         }
 
-        // Special formatting for edit and write tools - simple confirmation (preview shows everything)
+        // Special handling for edit and write tools - allow within CWD, confirm for outside
         if (event.toolName === "edit") {
+            const editInput = input as { path: string };
+            
+            if (isPathWithinCwd(editInput.path, ctx.cwd)) {
+                return undefined; // Allow edits within CWD
+            }
+            
             const choice = await ctx.ui.select("Apply this edit?", ["Allow", "Skip", "Abort"]);
             return handleChoice(choice, event.toolName, ctx);
         }
 
         if (event.toolName === "write") {
+            const writeInput = input as { path: string };
+            
+            if (isPathWithinCwd(writeInput.path, ctx.cwd)) {
+                return undefined; // Allow writes within CWD
+            }
+            
             const choice = await ctx.ui.select("Write this file?", ["Allow", "Skip", "Abort"]);
             return handleChoice(choice, event.toolName, ctx);
         }
