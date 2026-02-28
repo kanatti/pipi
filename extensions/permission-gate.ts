@@ -4,7 +4,7 @@
  * Controls which tool calls require user confirmation before executing.
  *
  * - `read` - always allowed
- * - `bash` - allowed for safe read-only commands (ls, cat, find, git status, gh repo view, ktools yt-transcript, etc.)
+ * - `bash` - allowed for safe read-only commands (ls, cat, find, git status, gh repo view, kbase repo list, ktools yt-transcript, etc.)
  * - `write`, `edit` - require confirmation
  * - Other tools - require confirmation
  *
@@ -85,6 +85,7 @@ const safeSubcommands: Record<string, Set<string>> = {
         "pkgid",          // print package ID
         "help",           // show help
         "check",          // check compilation without building
+        "build",          // compile project (NOTE: not read-only, writes to target/ - allowed for dev convenience)
         "test",           // run tests (NOTE: not read-only, executes code - allowed for dev convenience)
     ]),
     // Add more here as needed, e.g.:
@@ -98,6 +99,10 @@ const safeGhResources = new Set(["repo", "pr", "issue", "release", "run", "workf
 // Safe ktools commands (format: ktools <tool> <action>)
 const safeKtoolsActions = new Set(["list", "get", "chapters"]);
 const safeKtoolsTools = new Set(["yt-transcript"]);
+
+// Safe kbase commands (format: kbase <resource> <action>)
+const safeKbaseActions = new Set(["list", "show", "search", "describe"]);
+const safeKbaseResources = new Set(["repo", "vault", "domain", "note", "tag"]);
 
 // ============================================================================
 // Policy Checking
@@ -167,6 +172,22 @@ const checkSafeKtoolsCommand: PolicyChecker = (words) => {
 };
 
 /**
+ * Policy 4b: Check if it's a safe kbase command with resource and action.
+ * kbase commands have format: kbase <resource> <action> [args]
+ * Example: kbase repo list, kbase vault show, kbase note search, kbase repo describe --name lucene
+ */
+const checkSafeKbaseCommand: PolicyChecker = (words) => {
+    if (words[0] !== "kbase") {
+        return false;
+    }
+
+    const resource = words[1];
+    const action = words[2];
+
+    return !!resource && !!action && safeKbaseResources.has(resource) && safeKbaseActions.has(action);
+};
+
+/**
  * Policy 5: Check if it's a safe xargs command.
  * xargs commands have format: xargs [flags] command [command-args]
  * The safety depends on the command that xargs will execute.
@@ -207,6 +228,7 @@ const policyChecks: PolicyChecker[] = [
     checkSafeSubcommand,
     checkSafeGhCommand,
     checkSafeKtoolsCommand,
+    checkSafeKbaseCommand,
     checkSafeXargsCommand,
     // Add more policies here, e.g.:
     // checkSafeFlagsOnly,
