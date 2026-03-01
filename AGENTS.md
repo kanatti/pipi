@@ -35,6 +35,9 @@ Technical documentation and implementation notes for this package's features.
 ### `plan/`
 Planning documents and proposals for future work.
 
+### `research/`
+Analysis and technical investigations exploring how systems work and implementation approaches. Prefer this over `/tmp` for documenting research.
+
 ### `.pi/`
 Meta-configuration for working on pipi itself:
 - `.pi/prompts/` - prompts for developing pipi (like `/permit` to add safe commands)
