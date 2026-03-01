@@ -6,6 +6,21 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { isSafeBashCommand } from "../extensions/permission-gate.ts";
+import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+
+// Mock context for testing
+const mockCtx = {
+    cwd: "/test/cwd",
+    hasUI: false,
+    ui: {} as any,
+    sessionManager: {} as any,
+    modelRegistry: {} as any,
+    model: undefined,
+    isIdle: () => true,
+    abort: () => {},
+    hasPendingMessages: () => false,
+    shutdown: () => {},
+} as ExtensionContext;
 
 describe("Permission Gate - Bash Command Safety", () => {
     it("allows safe read-only commands", () => {
@@ -24,7 +39,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safeCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx, mockCtx), true, `Expected "${cmd}" to be safe`);
         }
     });
 
@@ -40,7 +55,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of unsafeCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx, mockCtx), false, `Expected "${cmd}" to be unsafe`);
         }
     });
 
@@ -53,7 +68,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safePipes) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe`);
         }
     });
 
@@ -65,7 +80,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safeCompoundCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe`);
         }
     });
 
@@ -78,7 +93,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safeWithDevNull) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe after stripping /dev/null`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe after stripping /dev/null`);
         }
     });
 
@@ -92,7 +107,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safeGhCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe`);
         }
     });
 
@@ -103,7 +118,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of unsafeGhCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), false, `Expected "${cmd}" to be unsafe`);
         }
     });
 
@@ -117,7 +132,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of dangerousCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), false, `Expected "${cmd}" to be unsafe`);
         }
     });
 
@@ -132,7 +147,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safeQuotedCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (quoted)`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe (quoted)`);
         }
     });
 
@@ -144,7 +159,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of escapedCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (escaped)`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe (escaped)`);
         }
     });
 
@@ -155,7 +170,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of mixedQuoteCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (mixed quotes)`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe (mixed quotes)`);
         }
     });
 
@@ -167,7 +182,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safeKtoolsCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe`);
         }
     });
 
@@ -178,7 +193,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of unsafeKtoolsCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), false, `Expected "${cmd}" to be unsafe`);
         }
     });
 
@@ -194,7 +209,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of safeXargsCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe`);
         }
     });
 
@@ -207,7 +222,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of unsafeXargsCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), false, `Expected "${cmd}" to be unsafe`);
         }
     });
 
@@ -220,7 +235,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of malformedXargsCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), false, `Expected "${cmd}" to be unsafe (malformed)`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), false, `Expected "${cmd}" to be unsafe (malformed)`);
         }
     });
 
@@ -235,7 +250,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of commandsWithQuotedOperators) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (quoted operators)`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe (quoted operators)`);
         }
     });
 
@@ -247,7 +262,7 @@ describe("Permission Gate - Bash Command Safety", () => {
         ];
 
         for (const cmd of complexCommands) {
-            assert.strictEqual(isSafeBashCommand(cmd), true, `Expected "${cmd}" to be safe (complex quoted)`);
+            assert.strictEqual(isSafeBashCommand(cmd, mockCtx), true, `Expected "${cmd}" to be safe (complex quoted)`);
         }
     });
 
@@ -255,9 +270,119 @@ describe("Permission Gate - Bash Command Safety", () => {
         // This was the exact command that prompted the quote-aware splitting fix
         const parquetCommand = 'find . -name "*.md" | xargs grep -l -i "bundle\\|shade\\|conflict"';
         assert.strictEqual(
-            isSafeBashCommand(parquetCommand), 
+            isSafeBashCommand(parquetCommand, mockCtx), 
             true, 
             "The parquet-java command should be allowed (regression test)"
+        );
+    });
+
+    it("allows mkdir within CWD", () => {
+        const safeMkdirCommands = [
+            "mkdir test",
+            "mkdir -p nested/dir/structure",
+            "mkdir dir1 dir2 dir3",
+            "mkdir -v -p some/path",
+            "mkdir --parents deep/nested/path",
+        ];
+
+        for (const cmd of safeMkdirCommands) {
+            assert.strictEqual(
+                isSafeBashCommand(cmd, mockCtx),
+                true,
+                `Expected "${cmd}" to be safe (mkdir in CWD)`
+            );
+        }
+    });
+
+    it("blocks mkdir outside CWD", () => {
+        const unsafeMkdirCommands = [
+            "mkdir /absolute/path",
+            "mkdir ../parent",
+            "mkdir ../../escape",
+            "mkdir -p ../outside/cwd",
+        ];
+
+        for (const cmd of unsafeMkdirCommands) {
+            assert.strictEqual(
+                isSafeBashCommand(cmd, mockCtx),
+                false,
+                `Expected "${cmd}" to be unsafe (mkdir outside CWD)`
+            );
+        }
+    });
+
+    it("blocks mkdir with no paths specified", () => {
+        const malformedMkdirCommands = [
+            "mkdir",
+            "mkdir -p",
+            "mkdir -v",
+        ];
+
+        for (const cmd of malformedMkdirCommands) {
+            assert.strictEqual(
+                isSafeBashCommand(cmd, mockCtx),
+                false,
+                `Expected "${cmd}" to be unsafe (no paths)`
+            );
+        }
+    });
+
+    it("allows safe mkdir in command chains with other safe commands", () => {
+        const safeChains = [
+            "mkdir test && ls",
+            "mkdir -p dir && cd dir",
+            "mkdir temp && echo done",
+            "ls && mkdir newdir",
+        ];
+
+        for (const cmd of safeChains) {
+            assert.strictEqual(
+                isSafeBashCommand(cmd, mockCtx),
+                true,
+                `Expected "${cmd}" to be safe (mkdir + safe commands)`
+            );
+        }
+    });
+
+    it("blocks mkdir in command chains with unsafe commands", () => {
+        const unsafeChains = [
+            "mkdir test && rm -rf test",
+            "mkdir dir && mv file dir/",
+            "mkdir temp && git commit -m 'test'",
+            "rm -rf old && mkdir new",
+            "mkdir test | sh",
+        ];
+
+        for (const cmd of unsafeChains) {
+            assert.strictEqual(
+                isSafeBashCommand(cmd, mockCtx),
+                false,
+                `Expected "${cmd}" to be unsafe (mkdir with unsafe commands)`
+            );
+        }
+    });
+
+    it("blocks mkdir outside CWD even in safe command chains", () => {
+        const unsafeChains = [
+            "mkdir ../escape && ls",
+            "ls && mkdir /tmp/test",
+            "mkdir -p ../../bad && echo done",
+        ];
+
+        for (const cmd of unsafeChains) {
+            assert.strictEqual(
+                isSafeBashCommand(cmd, mockCtx),
+                false,
+                `Expected "${cmd}" to be unsafe (mkdir outside CWD in chain)`
+            );
+        }
+    });
+
+    it("allows npm test", () => {
+        assert.strictEqual(
+            isSafeBashCommand("npm test", mockCtx),
+            true,
+            "npm test should be allowed"
         );
     });
 });

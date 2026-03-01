@@ -1,7 +1,7 @@
 ---
 description: Prepare agent context for upcoming work
 ---
-I need to work on: $@
+Our focus for this session: $@
 
 Get ready by gathering relevant context:
 - Check if relevant repos/code are available

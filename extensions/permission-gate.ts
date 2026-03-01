@@ -5,6 +5,7 @@
  *
  * - `read` - always allowed
  * - `bash` - allowed for safe read-only commands (ls, cat, find, git status, gh repo view, kbase repo list, ktools yt-transcript, etc.)
+ *           - `mkdir` allowed within CWD only
  * - `write`, `edit` - allowed within current working directory (nested down), require confirmation for parent directories or absolute paths
  * - Other tools - require confirmation
  *
@@ -12,7 +13,7 @@
  * safe commands by updating the configuration at the top of this file.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { resolve, relative } from "node:path";
 
 // ============================================================================
@@ -103,6 +104,9 @@ const safeSubcommands: Record<string, Set<string>> = {
         "build",          // compile project (NOTE: not read-only, writes to target/ - allowed for dev convenience)
         "test",           // run tests (NOTE: not read-only, executes code - allowed for dev convenience)
     ]),
+    npm: new Set([
+        "test",           // run tests (NOTE: not read-only, executes code - allowed for dev convenience)
+    ]),
     // Add more here as needed, e.g.:
     // "docker": new Set(["ps", "images", "inspect", "logs"]),
 };
@@ -127,19 +131,19 @@ const safeKbaseResources = new Set(["repo", "vault", "domain", "note", "tag"]);
  * Policy checker function type.
  * Returns true if the command passes the policy check.
  */
-type PolicyChecker = (words: string[]) => boolean;
+type PolicyChecker = (words: string[], ctx: ExtensionContext) => boolean;
 
 /**
  * Policy 1: Check if first word is a simple safe command.
  */
-const checkSimpleSafeCommand: PolicyChecker = (words) => {
+const checkSimpleSafeCommand: PolicyChecker = (words, ctx) => {
     return safeBashCommands.has(words[0]);
 };
 
 /**
  * Policy 2: Check if it's a compound command with safe subcommand.
  */
-const checkSafeSubcommand: PolicyChecker = (words) => {
+const checkSafeSubcommand: PolicyChecker = (words, ctx) => {
     const firstWord = words[0];
     const secondWord = words[1];
 
@@ -153,7 +157,7 @@ const checkSafeSubcommand: PolicyChecker = (words) => {
  * Policy 3: Check if it's a safe gh command.
  * gh commands have format: gh <resource> <action> or gh --flag
  */
-const checkSafeGhCommand: PolicyChecker = (words) => {
+const checkSafeGhCommand: PolicyChecker = (words, ctx) => {
     if (words[0] !== "gh") {
         return false;
     }
@@ -175,7 +179,7 @@ const checkSafeGhCommand: PolicyChecker = (words) => {
  * ktools commands have format: ktools <tool> <action> [args]
  * Example: ktools yt-transcript list VIDEO_ID
  */
-const checkSafeKtoolsCommand: PolicyChecker = (words) => {
+const checkSafeKtoolsCommand: PolicyChecker = (words, ctx) => {
     if (words[0] !== "ktools") {
         return false;
     }
@@ -191,7 +195,7 @@ const checkSafeKtoolsCommand: PolicyChecker = (words) => {
  * kbase commands have format: kbase <resource> <action> [args]
  * Example: kbase repo list, kbase vault show, kbase note search, kbase repo describe --name lucene
  */
-const checkSafeKbaseCommand: PolicyChecker = (words) => {
+const checkSafeKbaseCommand: PolicyChecker = (words, ctx) => {
     if (words[0] !== "kbase") {
         return false;
     }
@@ -203,12 +207,33 @@ const checkSafeKbaseCommand: PolicyChecker = (words) => {
 };
 
 /**
- * Policy 5: Check if it's a safe xargs command.
+ * Policy 5: Check if it's a mkdir command within CWD.
+ * mkdir commands have format: mkdir [flags] path [path2 ...]
+ * Allow only if all paths are within CWD.
+ */
+const checkSafeMkdirInCwd: PolicyChecker = (words, ctx) => {
+    if (words[0] !== "mkdir") {
+        return false;
+    }
+
+    // Extract paths (skip flags like -p, -v, -m, --parents, --verbose, --mode)
+    const paths = words.slice(1).filter(arg => !arg.startsWith('-'));
+    
+    if (paths.length === 0) {
+        return false; // No paths specified
+    }
+
+    // All paths must be within CWD
+    return paths.every(path => isPathWithinCwd(path, ctx.cwd));
+};
+
+/**
+ * Policy 6: Check if it's a safe xargs command.
  * xargs commands have format: xargs [flags] command [command-args]
  * The safety depends on the command that xargs will execute.
  * Example: xargs grep pattern (safe), xargs rm (unsafe)
  */
-const checkSafeXargsCommand: PolicyChecker = (words) => {
+const checkSafeXargsCommand: PolicyChecker = (words, ctx) => {
     if (words[0] !== "xargs") {
         return false;
     }
@@ -234,7 +259,7 @@ const checkSafeXargsCommand: PolicyChecker = (words) => {
     
     // Now we have the actual command, check if it's safe
     const actualCommand = words.slice(i);
-    return isCommandSafe(actualCommand.join(' '));
+    return isCommandSafe(actualCommand.join(' '), ctx);
 };
 
 // Pipeline of policy checks - add more policies here as needed
@@ -244,6 +269,7 @@ const policyChecks: PolicyChecker[] = [
     checkSafeGhCommand,
     checkSafeKtoolsCommand,
     checkSafeKbaseCommand,
+    checkSafeMkdirInCwd,
     checkSafeXargsCommand,
     // Add more policies here, e.g.:
     // checkSafeFlagsOnly,
@@ -253,7 +279,7 @@ const policyChecks: PolicyChecker[] = [
 /**
  * Check if a command part passes any of the policy checks.
  */
-function isCommandSafe(commandPart: string): boolean {
+function isCommandSafe(commandPart: string, ctx: ExtensionContext): boolean {
     const words = commandPart.split(/\s+/).filter((w) => w.length > 0);
 
     if (words.length === 0) {
@@ -261,7 +287,7 @@ function isCommandSafe(commandPart: string): boolean {
     }
 
     // Pass if ANY policy check succeeds
-    return policyChecks.some((policy) => policy(words));
+    return policyChecks.some((policy) => policy(words, ctx));
 }
 
 // ============================================================================
@@ -404,7 +430,7 @@ function splitShellCommand(command: string): string[] {
  * A command is safe if all individual commands in the chain are whitelisted.
  * Exported for testing.
  */
-export function isSafeBashCommand(command: string): boolean {
+export function isSafeBashCommand(command: string, ctx: ExtensionContext): boolean {
     // Strip harmless redirects before checking for dangerous patterns.
     // These redirects don't write to files or execute code - they just discard output.
     const cleanCommand = command
@@ -425,7 +451,7 @@ export function isSafeBashCommand(command: string): boolean {
 
     // Check each part through the policy pipeline
     for (const part of parts) {
-        if (!isCommandSafe(part)) {
+        if (!isCommandSafe(part, ctx)) {
             return false;
         }
     }
@@ -467,7 +493,7 @@ export default function (pi: ExtensionAPI) {
         if (event.toolName === "bash") {
             const command = input.command as string | undefined;
 
-            if (command && isSafeBashCommand(command)) {
+            if (command && isSafeBashCommand(command, ctx)) {
                 // Allow safe commands without confirmation
                 return undefined;
             }
