@@ -478,7 +478,7 @@ function handleChoice(choice: string | undefined, toolName: string, ctx: any) {
 // ============================================================================
 
 export default function (pi: ExtensionAPI) {
-    const allowed = new Set(["read"]);
+    const allowed = new Set(["read", "send_to_manager", "send_to_worker"]);
 
     pi.on("tool_call", async (event, ctx) => {
         if (allowed.has(event.toolName)) return undefined;

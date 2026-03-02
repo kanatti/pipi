@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# piworker - Start pi in worker mode
+#
+# Usage: piworker <worker-name> [additional pi args...]
+#
+# Example:
+#   piworker worker1
+
+if [ -z "$1" ]; then
+  echo "Usage: piworker <worker-name>"
+  exit 1
+fi
+
+WORKER_NAME="$1"
+shift  # Remove worker name from args
+
+# Worker starts in unconnected mode - use /connect command to join a manager
+export PI_WORKER_ID="$WORKER_NAME"
+
+exec pi "$@"

@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# pimanager - Start pi in manager mode
+#
+# Usage: pimanager [--force] <manager-name> [additional pi args...]
+#        pimanager <manager-name> [--force] [additional pi args...]
+#
+# Options:
+#   --force    Remove existing socket if present
+#
+# Example:
+#   pimanager manager1
+#   pimanager --force manager1
+#   pimanager manager1 --force
+
+FORCE=0
+MANAGER_NAME=""
+PI_ARGS=()
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --force)
+      FORCE=1
+      shift
+      ;;
+    *)
+      if [ -z "$MANAGER_NAME" ]; then
+        MANAGER_NAME="$1"
+        shift
+      else
+        # Collect remaining args for pi
+        PI_ARGS+=("$1")
+        shift
+      fi
+      ;;
+  esac
+done
+
+if [ -z "$MANAGER_NAME" ]; then
+  echo "Usage: pimanager [--force] <manager-name>"
+  exit 1
+fi
+
+SOCKET_DIR="$HOME/.pipi/sockets"
+SOCKET_PATH="$SOCKET_DIR/${MANAGER_NAME}.sock"
+
+# Create directory if needed
+mkdir -p "$SOCKET_DIR"
+
+# Check if socket already exists
+if [ -e "$SOCKET_PATH" ]; then
+  if [ $FORCE -eq 1 ]; then
+    echo "Removing existing socket: $SOCKET_PATH"
+    rm -f "$SOCKET_PATH"
+  else
+    echo "Error: Manager socket already exists: $SOCKET_PATH"
+    echo "Another manager with name '$MANAGER_NAME' may be running."
+    echo "Use --force to remove it, or use a different name."
+    exit 1
+  fi
+fi
+
+export PI_WORKER_MANAGER=1
+export PI_MANAGER_NAME="$MANAGER_NAME"
+
+exec pi "${PI_ARGS[@]}"
