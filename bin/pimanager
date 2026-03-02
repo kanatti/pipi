@@ -60,7 +60,6 @@ if [ -e "$SOCKET_PATH" ]; then
   fi
 fi
 
-export PI_WORKER_MANAGER=1
-export PI_MANAGER_NAME="$MANAGER_NAME"
+export PI_MANAGER_ID="$MANAGER_NAME"
 
 exec pi "${PI_ARGS[@]}"
