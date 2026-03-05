@@ -88,6 +88,7 @@ const safeSubcommands: Record<string, Set<string>> = {
         "notes",
         "read",
         "tags",
+        "links",
     ]),
     cargo: new Set([
         "--version",      // show version
@@ -192,15 +193,22 @@ const checkSafeKtoolsCommand: PolicyChecker = (words, ctx) => {
 
 /**
  * Policy 4b: Check if it's a safe kbase command with resource and action.
- * kbase commands have format: kbase <resource> <action> [args]
- * Example: kbase repo list, kbase vault show, kbase note search, kbase repo describe --name lucene
+ * kbase commands have format: kbase <resource> <action> [args] or kbase --flag
+ * Example: kbase repo list, kbase vault show, kbase note search, kbase repo describe --name lucene, kbase --help
  */
 const checkSafeKbaseCommand: PolicyChecker = (words, ctx) => {
     if (words[0] !== "kbase") {
         return false;
     }
 
-    const resource = words[1];
+    const secondWord = words[1];
+
+    // Handle flags like: kbase --help
+    if (secondWord?.startsWith("--")) {
+        return secondWord === "--help";
+    }
+
+    const resource = secondWord;
     const action = words[2];
 
     return !!resource && !!action && safeKbaseResources.has(resource) && safeKbaseActions.has(action);
