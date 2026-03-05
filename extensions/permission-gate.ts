@@ -4,7 +4,7 @@
  * Controls which tool calls require user confirmation before executing.
  *
  * - `read` - always allowed
- * - `bash` - allowed for safe read-only commands (ls, cat, find, git status, gh repo view, kbase repo list, ktools yt-transcript, etc.)
+ * - `bash` - allowed for safe read-only commands (ls, cat, grep, git status, etc.)
  *           - `mkdir` allowed within CWD only
  * - `write`, `edit` - allowed within current working directory (nested down), require confirmation for parent directories or absolute paths
  * - Other tools - require confirmation
@@ -89,6 +89,10 @@ const safeSubcommands: Record<string, Set<string>> = {
         "read",
         "tags",
         "links",
+        "--help",
+        "-h",
+        "--version",
+        "-V",
     ]),
     cargo: new Set([
         "--version",      // show version
@@ -124,6 +128,13 @@ const safeKtoolsTools = new Set(["yt-transcript"]);
 const safeKbaseActions = new Set(["list", "show", "search", "describe"]);
 const safeKbaseResources = new Set(["repo", "vault", "domain", "note", "tag"]);
 
+// Command aliases - map alternative names to canonical command names
+// This allows ./target/release/kbase and ./target/debug/kbase to use the same safe subcommands as kbase
+const commandAliases: Record<string, string> = {
+    "./target/release/kbase": "kbase",
+    "./target/debug/kbase": "kbase",
+};
+
 // ============================================================================
 // Policy Checking
 // ============================================================================
@@ -143,10 +154,16 @@ const checkSimpleSafeCommand: PolicyChecker = (words, ctx) => {
 
 /**
  * Policy 2: Check if it's a compound command with safe subcommand.
+ * Supports command aliases for alternative command paths.
  */
 const checkSafeSubcommand: PolicyChecker = (words, ctx) => {
-    const firstWord = words[0];
+    let firstWord = words[0];
     const secondWord = words[1];
+
+    // Resolve alias to canonical command name
+    if (firstWord in commandAliases) {
+        firstWord = commandAliases[firstWord];
+    }
 
     if (firstWord in safeSubcommands) {
         return !!secondWord && safeSubcommands[firstWord].has(secondWord);
