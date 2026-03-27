@@ -5,8 +5,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { isSafeBashCommand } from "../extensions/permission-gate.ts";
+import { isSafeBashCommand, isPathWithinCwd } from "../extensions/permission-gate.ts";
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { homedir } from "node:os";
 
 // Mock context for testing
 const mockCtx = {
@@ -383,6 +384,153 @@ describe("Permission Gate - Bash Command Safety", () => {
             isSafeBashCommand("npm test", mockCtx),
             true,
             "npm test should be allowed"
+        );
+    });
+});
+
+describe("Permission Gate - Path Safety (write/edit)", () => {
+    const home = homedir();
+    
+    it("allows paths within CWD (relative paths going down)", () => {
+        const safePaths = [
+            ["file.txt", "/home/user/project"],
+            ["./file.txt", "/home/user/project"],
+            ["subdir/file.txt", "/home/user/project"],
+            ["./nested/deep/file.txt", "/home/user/project"],
+        ];
+
+        for (const [path, cwd] of safePaths) {
+            assert.strictEqual(
+                isPathWithinCwd(path, cwd),
+                true,
+                `Expected "${path}" to be safe within "${cwd}"`
+            );
+        }
+    });
+
+    it("blocks paths outside CWD (parent directory escapes)", () => {
+        const unsafePaths = [
+            ["../file.txt", "/home/user/project"],
+            ["../../file.txt", "/home/user/project"],
+            ["../sibling/file.txt", "/home/user/project"],
+            ["./../../escape.txt", "/home/user/project"],
+        ];
+
+        for (const [path, cwd] of unsafePaths) {
+            assert.strictEqual(
+                isPathWithinCwd(path, cwd),
+                false,
+                `Expected "${path}" to be unsafe (outside "${cwd}")`
+            );
+        }
+    });
+
+    it("blocks absolute paths outside CWD", () => {
+        const unsafePaths = [
+            ["/etc/passwd", "/home/user/project"],
+            ["/tmp/file.txt", "/home/user/project"],
+            ["/home/other/file.txt", "/home/user/project"],
+            ["/var/log/system.log", "/home/user/project"],
+        ];
+
+        for (const [path, cwd] of unsafePaths) {
+            assert.strictEqual(
+                isPathWithinCwd(path, cwd),
+                false,
+                `Expected "${path}" to be unsafe (absolute path outside "${cwd}")`
+            );
+        }
+    });
+
+    it("allows absolute paths within CWD", () => {
+        const safePaths = [
+            ["/home/user/project/file.txt", "/home/user/project"],
+            ["/home/user/project/nested/file.txt", "/home/user/project"],
+        ];
+
+        for (const [path, cwd] of safePaths) {
+            assert.strictEqual(
+                isPathWithinCwd(path, cwd),
+                true,
+                `Expected "${path}" to be safe (absolute within "${cwd}")`
+            );
+        }
+    });
+
+    it("blocks tilde paths outside CWD (the original bug!)", () => {
+        // This is the exact scenario that was incorrectly allowed before the fix
+        const unsafeTildePaths = [
+            ["~/.zshrc", "/home/user/Code"],
+            ["~/.config/nvim/init.vim", "/home/user/project"],
+            ["~/Documents/file.txt", "/home/user/Code"],
+            ["~/.bashrc", "/tmp"],
+        ];
+
+        for (const [path, cwd] of unsafeTildePaths) {
+            assert.strictEqual(
+                isPathWithinCwd(path, cwd),
+                false,
+                `Expected "${path}" to be unsafe (tilde outside "${cwd}")`
+            );
+        }
+    });
+
+    it("allows tilde paths that ARE within CWD", () => {
+        // If CWD is under home, and path is also under home deeper than CWD
+        const cwd = `${home}/Code/project`;
+        const safeTildePaths = [
+            [`~/Code/project/file.txt`, cwd],
+            [`~/Code/project/nested/file.txt`, cwd],
+        ];
+
+        for (const [path, testCwd] of safeTildePaths) {
+            assert.strictEqual(
+                isPathWithinCwd(path, testCwd),
+                true,
+                `Expected "${path}" to be safe within "${testCwd}"`
+            );
+        }
+    });
+
+    it("handles ~ as home directory root", () => {
+        const cwd = "/tmp/random";
+        assert.strictEqual(
+            isPathWithinCwd("~", cwd),
+            false,
+            "Expected bare '~' to be unsafe (home dir outside /tmp/random)"
+        );
+    });
+
+    it("correctly expands tilde before path resolution", () => {
+        // This test verifies the fix: ~ should expand to home directory, not be treated as literal "~" folder
+        const cwd = `${home}/Code`;
+        
+        // Before fix: resolve(cwd, "~/.zshrc") would give "${home}/Code/~/.zshrc" 
+        // After fix: should expand to "${home}/.zshrc" which is outside CWD
+        assert.strictEqual(
+            isPathWithinCwd("~/.zshrc", cwd),
+            false,
+            "~/.zshrc should be recognized as home directory, not literal '~' folder"
+        );
+
+        // Verify that a literal ~/ folder path (if someone really had a ~ directory) would fail
+        // because we always expand ~, so there's no way to refer to a literal ~ directory
+        assert.strictEqual(
+            isPathWithinCwd("~/subfolder", cwd),
+            false,
+            "~/subfolder expands to ${home}/subfolder which is outside ${home}/Code"
+        );
+    });
+
+    it("real-world regression test: editing ~/.zshrc from ~/Code directory", () => {
+        // The exact bug that was reported
+        const cwd = `${home}/Code`;
+        const path = "~/.zshrc";
+        
+        assert.strictEqual(
+            isPathWithinCwd(path, cwd),
+            false,
+            "Editing ~/.zshrc from ~/Code should require permission (REGRESSION TEST)"
         );
     });
 });

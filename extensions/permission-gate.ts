@@ -15,17 +15,36 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { resolve, relative } from "node:path";
+import { homedir } from "node:os";
 
 // ============================================================================
 // Path Safety Helpers
 // ============================================================================
 
 /**
+ * Expand tilde (~) in a path to the user's home directory.
+ * Node.js path.resolve() doesn't expand ~, so we do it manually.
+ */
+function expandTilde(path: string): string {
+    if (path === '~') {
+        return homedir();
+    }
+    if (path.startsWith('~/')) {
+        return path.replace('~', homedir());
+    }
+    return path;
+}
+
+/**
  * Check if a file path is within the current working directory (nested down).
  * Returns false for parent directories (..) or absolute paths outside CWD.
+ * Properly handles tilde (~) expansion to prevent treating ~ as a literal directory name.
+ * Exported for testing.
  */
-function isPathWithinCwd(path: string, cwd: string): boolean {
-    const absolutePath = resolve(cwd, path);
+export function isPathWithinCwd(path: string, cwd: string): boolean {
+    // Expand ~ to home directory before resolving
+    const expandedPath = expandTilde(path);
+    const absolutePath = resolve(cwd, expandedPath);
     const relativeToCwd = relative(cwd, absolutePath);
     return !relativeToCwd.startsWith('..');
 }
